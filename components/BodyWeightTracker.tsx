@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { BodyWeightEntry } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, parseISO } from 'date-fns';
+// FIX: Use subpath imports for date-fns to resolve module export errors.
+import format from 'date-fns/format';
+import parseISO from 'date-fns/parseISO';
 
 interface Props {
     history: BodyWeightEntry[];

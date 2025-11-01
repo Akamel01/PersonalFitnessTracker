@@ -1,19 +1,73 @@
-import React, { useMemo } from 'react';
-import { Activity, ActivityType, WeightLiftingLog, RunningLog, SwimmingLog } from '../types';
+import React, { useMemo, useState } from 'react';
+import { Activity, ActivityType, WeightLiftingLog, RunningLog, SwimmingLog, MuscleGroup } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { format, parseISO, startOfWeek } from 'date-fns';
+// FIX: Use subpath imports for date-fns to resolve module export errors.
+import format from 'date-fns/format';
+import parseISO from 'date-fns/parseISO';
+import startOfISOWeek from 'date-fns/startOfISOWeek';
+import subDays from 'date-fns/subDays';
+import { exerciseDictionary } from '../data/exercises';
+import MuscleHeatmap from './MuscleHeatmap';
 
 interface Props {
     activities: Activity[];
 }
 
 const Dashboard: React.FC<Props> = ({ activities }) => {
+    const [selectedExercise, setSelectedExercise] = useState<string>('');
+    
+    const weightLiftingActivities = useMemo(() => 
+        activities.filter(a => a.type === ActivityType.WEIGHT_LIFTING) as WeightLiftingLog[], 
+        [activities]
+    );
+
+    const weeklyMuscleVolume = useMemo(() => {
+        const last7Days = subDays(new Date(), 7);
+        const recentActivities = weightLiftingActivities.filter(a => parseISO(a.date) >= last7Days);
+        
+        const volumeByMuscle: { [key in MuscleGroup]?: number } = {};
+
+        recentActivities.forEach(activity => {
+            const exerciseInfo = exerciseDictionary.find(ex => ex.name.toLowerCase() === activity.exercise.toLowerCase());
+            if (exerciseInfo) {
+                const totalVolume = activity.sets.reduce((sum, set) => sum + set.reps * set.weight, 0);
+                exerciseInfo.muscleGroups.forEach(muscle => {
+                    if (!volumeByMuscle[muscle]) {
+                        volumeByMuscle[muscle] = 0;
+                    }
+                    volumeByMuscle[muscle]! += totalVolume;
+                });
+            }
+        });
+        return volumeByMuscle;
+    }, [weightLiftingActivities]);
+
+    const maxWeightProgression = useMemo(() => {
+        if (!selectedExercise) return [];
+        return weightLiftingActivities
+            .filter(a => a.exercise === selectedExercise)
+            .map(a => ({
+                date: format(parseISO(a.date), 'MMM d'),
+                maxWeight: Math.max(...a.sets.map(s => s.weight)),
+            }))
+             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [weightLiftingActivities, selectedExercise]);
+    
+    const uniqueExercises = useMemo(() => {
+        const exerciseSet = new Set(weightLiftingActivities.map(a => a.exercise));
+        return Array.from(exerciseSet).sort();
+    }, [weightLiftingActivities]);
+
+    // Effect to select the first exercise by default
+    React.useEffect(() => {
+        if (uniqueExercises.length > 0 && !selectedExercise) {
+            setSelectedExercise(uniqueExercises[0]);
+        }
+    }, [uniqueExercises, selectedExercise]);
+
 
     const liftingData = useMemo(() => {
-        const liftingActivities = activities
-            .filter(a => a.type === ActivityType.WEIGHT_LIFTING) as WeightLiftingLog[];
-        
-        const dataByDate = liftingActivities.reduce((acc, curr) => {
+        const dataByDate = weightLiftingActivities.reduce((acc, curr) => {
             const date = format(parseISO(curr.date), 'MMM d');
             const volume = curr.sets.reduce((total, set) => total + (set.reps * set.weight), 0);
             if (!acc[date]) {
@@ -27,7 +81,7 @@ const Dashboard: React.FC<Props> = ({ activities }) => {
             .map(([date, volume]) => ({ date, volume }))
             .reverse();
 
-    }, [activities]);
+    }, [weightLiftingActivities]);
 
     const runningData = useMemo(() => {
         const runningActivities = activities
@@ -50,7 +104,8 @@ const Dashboard: React.FC<Props> = ({ activities }) => {
             .filter(a => a.type === ActivityType.SWIMMING) as SwimmingLog[];
 
         const dataByWeek = swimmingActivities.reduce((acc, curr) => {
-            const weekStart = format(startOfWeek(parseISO(curr.date)), 'MMM d');
+            // FIX: Use startOfISOWeek as suggested by the error message.
+            const weekStart = format(startOfISOWeek(parseISO(curr.date)), 'MMM d');
             if (!acc[weekStart]) {
                 acc[weekStart] = 0;
             }
@@ -91,6 +146,33 @@ const Dashboard: React.FC<Props> = ({ activities }) => {
     return (
         <div className="space-y-8">
             <h2 className="text-3xl font-bold tracking-tight text-white mb-6">Your Progress</h2>
+            
+             {weightLiftingActivities.length > 0 && (
+                 <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
+                    <h3 className="text-xl font-semibold mb-4 text-indigo-300">Muscle Engagement (Last 7 Days)</h3>
+                     <MuscleHeatmap volumeData={weeklyMuscleVolume} />
+                 </div>
+            )}
+
+            {maxWeightProgression.length > 0 && (
+                 <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
+                    <h3 className="text-xl font-semibold mb-4 text-purple-300">Max Weight Progression</h3>
+                    <select value={selectedExercise} onChange={e => setSelectedExercise(e.target.value)}
+                        className="mb-4 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        {uniqueExercises.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+                    </select>
+                     <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={maxWeightProgression} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#4a5568" />
+                            <XAxis dataKey="date" stroke="#a0aec0" />
+                            <YAxis stroke="#a0aec0" domain={['dataMin - 5', 'dataMax + 5']} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend />
+                            <Line type="monotone" dataKey="maxWeight" stroke="#c084fc" name="Max Weight (kg)" />
+                        </LineChart>
+                    </ResponsiveContainer>
+                 </div>
+            )}
             
             {liftingData.length > 0 && (
                 <div className="bg-gray-800 p-4 rounded-lg shadow-lg">

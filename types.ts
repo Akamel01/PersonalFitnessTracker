@@ -13,6 +13,22 @@ export enum View {
     WEIGHT = 'WEIGHT',
 }
 
+export enum MuscleGroup {
+    CHEST = 'Chest',
+    BACK = 'Back',
+    SHOULDERS = 'Shoulders',
+    BICEPS = 'Biceps',
+    TRICEPS = 'Triceps',
+    LEGS = 'Legs', // Can be broken down further
+    QUADS = 'Quads',
+    HAMSTRINGS = 'Hamstrings',
+    GLUTES = 'Glutes',
+    CALVES = 'Calves',
+    ABS = 'Abs',
+    FOREARMS = 'Forearms',
+}
+
+
 interface BaseActivity {
     id: string;
     type: ActivityType;

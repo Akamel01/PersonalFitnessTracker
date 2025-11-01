@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { WorkoutPlan, PlanExercise } from '../types';
 
 interface Props {
@@ -7,47 +7,42 @@ interface Props {
     deletePlan: (id: string) => void;
 }
 
-const WorkoutPlans: React.FC<Props> = ({ plans, addPlan, deletePlan }) => {
-    const [isCreating, setIsCreating] = useState(false);
-    const [newPlanName, setNewPlanName] = useState('');
-    const [newPlanExercises, setNewPlanExercises] = useState<Omit<PlanExercise, 'id'>[]>([{ name: '', sets: 3, reps: 10 }]);
+const PlanCreator = memo(({ onSave, onCancel }: { onSave: (name: string, exercises: Omit<PlanExercise, 'id'>[]) => void, onCancel: () => void }) => {
+    const [name, setName] = useState('');
+    const [exercises, setExercises] = useState<Omit<PlanExercise, 'id'>[]>([{ name: '', sets: 3, reps: 10 }]);
 
     const handleAddExercise = () => {
-        setNewPlanExercises([...newPlanExercises, { name: '', sets: 3, reps: 10 }]);
+        setExercises([...exercises, { name: '', sets: 3, reps: 10 }]);
     };
-    
+
     const handleExerciseChange = (index: number, field: keyof Omit<PlanExercise, 'id'>, value: string | number) => {
-        const updatedExercises = [...newPlanExercises];
+        const updatedExercises = [...exercises];
         (updatedExercises[index] as any)[field] = value;
-        setNewPlanExercises(updatedExercises);
+        setExercises(updatedExercises);
     };
 
     const handleRemoveExercise = (index: number) => {
-        setNewPlanExercises(newPlanExercises.filter((_, i) => i !== index));
+        setExercises(exercises.filter((_, i) => i !== index));
     };
-    
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newPlanName.trim() || newPlanExercises.some(ex => !ex.name.trim())) {
+        if (!name.trim() || exercises.some(ex => !ex.name.trim())) {
             alert('Please fill out the plan name and all exercise names.');
             return;
         }
-        addPlan({ name: newPlanName, exercises: newPlanExercises.map(ex => ({...ex, id: crypto.randomUUID()})) });
-        // Reset form
-        setIsCreating(false);
-        setNewPlanName('');
-        setNewPlanExercises([{ name: '', sets: 3, reps: 10 }]);
+        onSave(name, exercises);
     };
 
-    const PlanCreator = () => (
+    return (
         <div className="bg-gray-800 rounded-lg p-6 space-y-4 mb-6">
             <h3 className="text-xl font-bold text-white">Create New Plan</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <input type="text" placeholder="Plan Name (e.g., Push Day)" value={newPlanName} onChange={e => setNewPlanName(e.target.value)}
+                <input type="text" placeholder="Plan Name (e.g., Push Day)" value={name} onChange={e => setName(e.target.value)}
                     className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white" required />
                 
                 <div className="space-y-3">
-                    {newPlanExercises.map((ex, index) => (
+                    {exercises.map((ex, index) => (
                         <div key={index} className="grid grid-cols-12 gap-2 items-center">
                             <input type="text" placeholder="Exercise Name" value={ex.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)}
                                 className="col-span-6 bg-gray-700 border-gray-600 rounded-md py-1 px-2 text-white text-sm" required />
@@ -66,12 +61,22 @@ const WorkoutPlans: React.FC<Props> = ({ plans, addPlan, deletePlan }) => {
                 <button type="button" onClick={handleAddExercise} className="text-sm text-indigo-400 hover:text-indigo-300 font-medium">+ Add Exercise</button>
                 
                 <div className="flex gap-4">
-                    <button type="button" onClick={() => setIsCreating(false)} className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md">Cancel</button>
+                    <button type="button" onClick={onCancel} className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md">Cancel</button>
                     <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md">Save Plan</button>
                 </div>
             </form>
         </div>
     );
+});
+
+
+const WorkoutPlans: React.FC<Props> = ({ plans, addPlan, deletePlan }) => {
+    const [isCreating, setIsCreating] = useState(false);
+
+    const handleSavePlan = (name: string, exercises: Omit<PlanExercise, 'id'>[]) => {
+        addPlan({ name, exercises: exercises.map(ex => ({...ex, id: crypto.randomUUID()})) });
+        setIsCreating(false);
+    };
 
     return (
         <div className="space-y-6">
@@ -80,7 +85,7 @@ const WorkoutPlans: React.FC<Props> = ({ plans, addPlan, deletePlan }) => {
                 {!isCreating && <button onClick={() => setIsCreating(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md">+ New Plan</button>}
             </div>
 
-            {isCreating && <PlanCreator />}
+            {isCreating && <PlanCreator onSave={handleSavePlan} onCancel={() => setIsCreating(false)} />}
             
             {plans.length > 0 ? (
                 <div className="space-y-4">

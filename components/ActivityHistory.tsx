@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Activity, ActivityType, WeightLiftingLog, SwimmingLog, RunningLog, SetLog } from '../types';
 
 interface Props {
@@ -6,7 +6,7 @@ interface Props {
     deleteActivity: (id: string) => void;
 }
 
-const ActivityCard: React.FC<{ activity: Activity, onDelete: (id: string) => void }> = ({ activity, onDelete }) => {
+const ActivityCard: React.FC<{ activity: Activity, onDelete: (id: string) => void }> = memo(({ activity, onDelete }) => {
     const renderDetails = () => {
         switch (activity.type) {
             case ActivityType.WEIGHT_LIFTING:
@@ -70,7 +70,7 @@ const ActivityCard: React.FC<{ activity: Activity, onDelete: (id: string) => voi
             </button>
         </div>
     );
-};
+});
 
 
 const ActivityHistory: React.FC<Props> = ({ activities, deleteActivity }) => {
